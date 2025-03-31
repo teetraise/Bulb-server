@@ -1,11 +1,15 @@
 server:
   port: 8080
-  mode: debug # debug, release, test
+  mode: debug # debug или release
 
 database:
   host: localhost
   port: 5432
   user: postgres
-  password: password
+  password: postgres
   name: bulb_db
   sslmode: disable
+  
+jwt:
+  secret: your-secret-key-here
+  expiresin: 24 # время жизни токена в часах
