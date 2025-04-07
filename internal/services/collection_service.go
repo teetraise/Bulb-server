@@ -172,7 +172,7 @@ func (s *collectionService) IncrementPlayCount(id uint) error {
 // AddAction добавляет новое действие в коллекцию
 func (s *collectionService) AddAction(collectionID uint, action *models.Action) error {
 	// Проверяем существование коллекции
-	collection, err := s.collectionRepo.GetByID(collectionID)
+	_, err := s.collectionRepo.GetByID(collectionID)
 	if err != nil {
 		return ErrCollectionNotFound
 	}

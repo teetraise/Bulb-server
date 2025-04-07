@@ -8,6 +8,7 @@ import (
 	"github.com/KoLili12/bulb-server/internal/models"
 	"github.com/KoLili12/bulb-server/pkg/config"
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
 )
 
 var (
@@ -158,7 +159,5 @@ func (s *authService) ValidateRefreshToken(tokenString string) (*RefreshTokenCla
 
 // generateUUID создает уникальный идентификатор для токена
 func generateUUID() string {
-	// В реальном приложении здесь должна быть генерация UUID
-	// Для упрощения используем timestamp
-	return fmt.Sprintf("%d", time.Now().UnixNano())
+	return uuid.New().String()
 }
