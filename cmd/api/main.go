@@ -57,13 +57,17 @@ func main() {
 
 	// Инициализация репозиториев
 	userRepo := repository.NewUserRepository(db)
+	collectionRepo := repository.NewCollectionRepository(db)
+	actionRepo := repository.NewActionRepository(db)
 
 	// Инициализация сервисов
 	userService := services.NewUserService(userRepo)
 	authService := services.NewAuthService(cfg)
+	collectionService := services.NewCollectionService(collectionRepo, actionRepo, userRepo)
 
 	// Инициализация обработчиков
 	authHandler := handlers.NewAuthHandler(userService, authService)
+	collectionHandler := handlers.NewCollectionHandler(collectionService)
 
 	// Middleware
 	authMiddleware := middleware.NewAuthMiddleware(authService)
@@ -78,7 +82,7 @@ func main() {
 	// Маршруты API
 	api := r.Group("/api")
 	{
-		// Открытые маршруты
+		// Открытые маршруты для аутентификации
 		auth := api.Group("/auth")
 		{
 			auth.POST("/register", authHandler.Register)
@@ -86,14 +90,29 @@ func main() {
 			auth.POST("/refresh", authHandler.RefreshToken)
 		}
 
+		// Открытые маршруты для коллекций
+		collections := api.Group("/collections")
+		{
+			collections.GET("", collectionHandler.List)
+			collections.GET("/trending", collectionHandler.GetTrending)
+			collections.GET("/:id", collectionHandler.GetByID)
+			collections.GET("/:id/actions", collectionHandler.GetActions)
+		}
+
 		// Защищенные маршруты
 		protected := api.Group("/")
 		protected.Use(authMiddleware.RequireAuth())
 		{
-			// Здесь будут защищенные маршруты
+			protected.GET("/user/collections", collectionHandler.GetUserCollections)
+			protected.POST("/collections", collectionHandler.Create)
+			protected.PUT("/collections/:id", collectionHandler.Update)
+			protected.DELETE("/collections/:id", collectionHandler.Delete)
+			protected.POST("/collections/:id/actions", collectionHandler.AddAction)
+			protected.DELETE("/actions/:id", collectionHandler.RemoveAction)
 		}
 	}
 
+	// Запуск сервера
 	serverAddr := ":" + cfg.Server.Port
 	log.Printf("Starting Bulb API Server on port %s...\n", cfg.Server.Port)
 	if err := r.Run(serverAddr); err != nil {
