@@ -4,7 +4,11 @@ import (
 	"log"
 
 	"github.com/KoLili12/bulb-server/internal/database"
+	"github.com/KoLili12/bulb-server/internal/handlers"
+	"github.com/KoLili12/bulb-server/internal/middleware"
 	"github.com/KoLili12/bulb-server/internal/models"
+	"github.com/KoLili12/bulb-server/internal/repository"
+	"github.com/KoLili12/bulb-server/internal/services"
 	"github.com/KoLili12/bulb-server/pkg/config"
 	"github.com/gin-gonic/gin"
 )
@@ -51,12 +55,44 @@ func main() {
 	log.Println("Initializing Gin...")
 	r := gin.Default()
 
+	// Инициализация репозиториев
+	userRepo := repository.NewUserRepository(db)
+
+	// Инициализация сервисов
+	userService := services.NewUserService(userRepo)
+	authService := services.NewAuthService(cfg)
+
+	// Инициализация обработчиков
+	authHandler := handlers.NewAuthHandler(userService, authService)
+
+	// Middleware
+	authMiddleware := middleware.NewAuthMiddleware(authService)
+
 	log.Println("Setting up routes...")
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"message": "pong",
 		})
 	})
+
+	// Маршруты API
+	api := r.Group("/api")
+	{
+		// Открытые маршруты
+		auth := api.Group("/auth")
+		{
+			auth.POST("/register", authHandler.Register)
+			auth.POST("/login", authHandler.Login)
+			auth.POST("/refresh", authHandler.RefreshToken)
+		}
+
+		// Защищенные маршруты
+		protected := api.Group("/")
+		protected.Use(authMiddleware.RequireAuth())
+		{
+			// Здесь будут защищенные маршруты
+		}
+	}
 
 	serverAddr := ":" + cfg.Server.Port
 	log.Printf("Starting Bulb API Server on port %s...\n", cfg.Server.Port)
