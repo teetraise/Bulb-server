@@ -1,115 +1,15 @@
-package config
+server:
+  port: 8080
+  mode: debug
 
-import (
-	"fmt"
-	"log"
-	"os"
-
-	"github.com/spf13/viper"
-)
-
-// Config содержит все конфигурационные параметры приложения
-type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	JWT      JWTConfig
-}
-
-// ServerConfig содержит настройки HTTP-сервера
-type ServerConfig struct {
-	Port string
-	Mode string
-}
-
-// DatabaseConfig содержит настройки подключения к базе данных
-type DatabaseConfig struct {
-	Host     string
-	Port     string
-	User     string
-	Password string
-	Name     string
-	SSLMode  string
-}
-
-// JWTConfig содержит настройки для JWT-аутентификации
-type JWTConfig struct {
-	Secret    string
-	ExpiresIn int // время жизни токена в часах
-}
-
-// LoadConfig загружает конфигурацию из файла config.yml в указанной директории
-func LoadConfig(path string) (*Config, error) {
-	// Определяем среду выполнения
-	env := os.Getenv("APP_ENV")
-	if env == "" {
-		env = "development"
-	}
-
-	viper.AddConfigPath(path)
-	
-	// Выбираем файл конфигурации в зависимости от среды
-	if env == "production" {
-		viper.SetConfigName("config.prod")
-	} else {
-		viper.SetConfigName("config")
-	}
-	
-	viper.SetConfigType("yml")
-
-	// Автоматически читаем переменные окружения
-	viper.AutomaticEnv()
-
-	// Установка значений по умолчанию
-	viper.SetDefault("server.port", "8080")
-	viper.SetDefault("server.mode", "debug")
-	viper.SetDefault("jwt.expiresin", 24) // 24 часа
-
-	// Чтение файла конфигурации
-	if err := viper.ReadInConfig(); err != nil {
-		// Если файл не найден в продакшене, используем только переменные окружения
-		if env == "production" {
-			log.Println("Config file not found, using environment variables only")
-		} else {
-			return nil, fmt.Errorf("error reading config file: %w", err)
-		}
-	}
-
-	// Преобразование конфигурации в структуру
-	config := &Config{}
-	if err := viper.Unmarshal(config); err != nil {
-		return nil, fmt.Errorf("unable to decode config into struct: %w", err)
-	}
-
-	// Проверяем обязательные поля для продакшена
-	if env == "production" {
-		if config.Database.Host == "" {
-			config.Database.Host = viper.GetString("DATABASE_HOST")
-		}
-		if config.Database.Port == "" {
-			config.Database.Port = viper.GetString("DATABASE_PORT")
-		}
-		if config.Database.User == "" {
-			config.Database.User = viper.GetString("DATABASE_USER")
-		}
-		if config.Database.Password == "" {
-			config.Database.Password = viper.GetString("DATABASE_PASSWORD")
-		}
-		if config.Database.Name == "" {
-			config.Database.Name = viper.GetString("DATABASE_NAME")
-		}
-		if config.JWT.Secret == "" {
-			config.JWT.Secret = viper.GetString("JWT_SECRET")
-		}
-		
-		// Устанавливаем SSL режим для продакшена
-		if config.Database.SSLMode == "" {
-			config.Database.SSLMode = "require"
-		}
-		
-		// Режим для продакшена
-		config.Server.Mode = "release"
-	}
-
-	log.Printf("Configuration loaded successfully for environment: %s", env)
-	return config, nil
-}
+database:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: postgres
+  name: bulb_db
+  sslmode: disable
+  
+jwt:
+  secret: your-secret-key-here
+  expiresin: 24
