@@ -1,0 +1,15 @@
+server:
+  port: 8080
+  mode: release
+
+database:
+  host: ${DATABASE_HOST}
+  port: ${DATABASE_PORT}
+  user: ${DATABASE_USER}
+  password: ${DATABASE_PASSWORD}
+  name: ${DATABASE_NAME}
+  sslmode: require
+  
+jwt:
+  secret: ${JWT_SECRET}
+  expiresin: 24
