@@ -1,5 +1,5 @@
-# Используем официальный образ Go
-FROM golang:1.21-alpine AS builder
+# Используем Go 1.23 вместо 1.21
+FROM golang:1.23-alpine AS builder
 
 # Устанавливаем git (нужен для go mod)
 RUN apk add --no-cache git
