@@ -55,6 +55,20 @@ func main() {
 	log.Println("Initializing Gin...")
 	r := gin.Default()
 
+	// Добавляем CORS middleware
+	r.Use(func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	})
+
 	// Инициализация репозиториев
 	userRepo := repository.NewUserRepository(db)
 	collectionRepo := repository.NewCollectionRepository(db)
@@ -77,6 +91,7 @@ func main() {
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"message": "pong",
+			"status":  "healthy",
 		})
 	})
 
@@ -110,8 +125,9 @@ func main() {
 		protected := api.Group("/")
 		protected.Use(authMiddleware.RequireAuth())
 		{
-			// User endpoints
-			protected.GET("/user/profile", userHandler.GetProfile)
+			// User endpoints - ДОБАВЛЕН /me endpoint
+			protected.GET("/me", userHandler.GetProfile)
+			protected.GET("/user/profile", userHandler.GetProfile) // Оставляем для совместимости
 			protected.PUT("/user/profile", userHandler.UpdateProfile)
 			
 			// Collections endpoints
@@ -127,6 +143,7 @@ func main() {
 	// Запуск сервера
 	serverAddr := ":" + cfg.Server.Port
 	log.Printf("Starting Bulb API Server on port %s...\n", cfg.Server.Port)
+	log.Printf("API endpoints available at http://localhost:%s/api\n", cfg.Server.Port)
 	if err := r.Run(serverAddr); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
