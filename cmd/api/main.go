@@ -67,6 +67,7 @@ func main() {
 
 	// Инициализация обработчиков
 	authHandler := handlers.NewAuthHandler(userService, authService)
+	userHandler := handlers.NewUserHandler(userService)
 	collectionHandler := handlers.NewCollectionHandler(collectionService)
 
 	// Middleware
@@ -103,6 +104,11 @@ func main() {
 		protected := api.Group("/")
 		protected.Use(authMiddleware.RequireAuth())
 		{
+			// User endpoints
+			protected.GET("/user/profile", userHandler.GetProfile)
+			protected.PUT("/user/profile", userHandler.UpdateProfile)
+			
+			// Collections endpoints
 			protected.GET("/user/collections", collectionHandler.GetUserCollections)
 			protected.POST("/collections", collectionHandler.Create)
 			protected.PUT("/collections/:id", collectionHandler.Update)
@@ -117,5 +123,5 @@ func main() {
 	log.Printf("Starting Bulb API Server on port %s...\n", cfg.Server.Port)
 	if err := r.Run(serverAddr); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
-	}
+	} 
 }

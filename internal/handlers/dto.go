@@ -50,3 +50,12 @@ type UserResponse struct {
 	Description string    `json:"description,omitempty"`
 	CreatedAt   time.Time `json:"createdAt"`
 }
+
+// UpdateProfileRequest представляет структуру запроса для обновления профиля
+type UpdateProfileRequest struct {
+	Name        string `json:"name" binding:"required"`
+	Surname     string `json:"surname" binding:"required"`
+	Email       string `json:"email" binding:"required,email"`
+	Phone       string `json:"phone"`
+	Description string `json:"description"`
+}
