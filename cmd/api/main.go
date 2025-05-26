@@ -100,6 +100,12 @@ func main() {
 			collections.GET("/:id/actions", collectionHandler.GetActions)
 		}
 
+		// Открытые маршруты для получения информации о пользователях
+		users := api.Group("/users")
+		{
+			users.GET("/:id", userHandler.GetUserByID)
+		}
+
 		// Защищенные маршруты
 		protected := api.Group("/")
 		protected.Use(authMiddleware.RequireAuth())
@@ -123,5 +129,5 @@ func main() {
 	log.Printf("Starting Bulb API Server on port %s...\n", cfg.Server.Port)
 	if err := r.Run(serverAddr); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
-	} 
+	}
 }

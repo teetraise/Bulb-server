@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/KoLili12/bulb-server/internal/middleware"
 	"github.com/KoLili12/bulb-server/internal/services"
@@ -18,6 +19,34 @@ func NewUserHandler(userService services.UserService) *UserHandler {
 	return &UserHandler{
 		userService: userService,
 	}
+}
+
+// GetUserByID возвращает информацию о пользователе по ID (публичный endpoint)
+func (h *UserHandler) GetUserByID(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid user ID"})
+		return
+	}
+
+	user, err := h.userService.GetByID(uint(id))
+	if err != nil {
+		if err == services.ErrUserNotFound {
+			c.JSON(http.StatusNotFound, ErrorResponse{Error: "User not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get user"})
+		return
+	}
+
+	// Возвращаем только публичную информацию о пользователе
+	response := PublicUserResponse{
+		ID:      user.ID,
+		Name:    user.Name,
+		Surname: user.Surname,
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // GetProfile возвращает профиль текущего пользователя
