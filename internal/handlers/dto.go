@@ -59,3 +59,10 @@ type UpdateProfileRequest struct {
 	Phone       string `json:"phone"`
 	Description string `json:"description"`
 }
+
+// PublicUserResponse представляет публичную информацию о пользователе
+type PublicUserResponse struct {
+	ID      uint   `json:"id"`
+	Name    string `json:"name"`
+	Surname string `json:"surname"`
+}
