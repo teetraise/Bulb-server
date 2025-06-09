@@ -24,12 +24,12 @@ type CollectionService interface {
 	GetTrending(limit int) ([]*models.Collection, error)
 	Update(collection *models.Collection, userID uint) error
 	Delete(id uint, userID uint) error
-	List(page, pageSize int) ([]*models.Collection, int64, error)
+	List(page int, pageSize int) ([]*models.Collection, int64, error)
 	IncrementPlayCount(id uint) error
 	AddAction(collectionID uint, action *models.Action) error
 	GetActions(collectionID uint) ([]*models.Action, error)
 	RemoveAction(actionID uint, userID uint) error
-	GetActionCounts(collectionID uint) (truthCount int, dareCount int, total int, error)
+	GetActionCounts(collectionID uint) (truthCount int, dareCount int, total int, err error)
 }
 
 // collectionService реализует интерфейс CollectionService
@@ -97,7 +97,7 @@ func (s *collectionService) CreateWithActions(collection *models.Collection, act
 		if action.Order == 0 {
 			action.Order = i + 1
 		}
-		
+
 		// Валидируем тип действия
 		if action.Type != models.ActionTypeTruth && action.Type != models.ActionTypeDare {
 			return ErrInvalidActionType
@@ -191,7 +191,7 @@ func (s *collectionService) Delete(id uint, userID uint) error {
 }
 
 // List возвращает список коллекций с пагинацией
-func (s *collectionService) List(page, pageSize int) ([]*models.Collection, int64, error) {
+func (s *collectionService) List(page int, pageSize int) ([]*models.Collection, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -284,7 +284,7 @@ func (s *collectionService) RemoveAction(actionID uint, userID uint) error {
 }
 
 // GetActionCounts возвращает количество действий по типам
-func (s *collectionService) GetActionCounts(collectionID uint) (truthCount int, dareCount int, total int, error) {
+func (s *collectionService) GetActionCounts(collectionID uint) (truthCount int, dareCount int, total int, err error) {
 	actions, err := s.actionRepo.GetByCollectionID(collectionID)
 	if err != nil {
 		return 0, 0, 0, err
