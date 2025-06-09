@@ -12,11 +12,13 @@ var (
 	ErrCollectionNotFound = errors.New("collection not found")
 	ErrInvalidUserID      = errors.New("invalid user ID")
 	ErrNotCollectionOwner = errors.New("user is not the owner of this collection")
+	ErrInvalidActionType  = errors.New("invalid action type")
 )
 
 // CollectionService определяет методы сервиса коллекций
 type CollectionService interface {
 	Create(collection *models.Collection) error
+	CreateWithActions(collection *models.Collection, actions []*models.Action) error
 	GetByID(id uint) (*models.Collection, error)
 	GetByUserID(userID uint) ([]*models.Collection, error)
 	GetTrending(limit int) ([]*models.Collection, error)
@@ -27,6 +29,7 @@ type CollectionService interface {
 	AddAction(collectionID uint, action *models.Action) error
 	GetActions(collectionID uint) ([]*models.Action, error)
 	RemoveAction(actionID uint, userID uint) error
+	GetActionCounts(collectionID uint) (truthCount int, dareCount int, total int, error)
 }
 
 // collectionService реализует интерфейс CollectionService
@@ -65,6 +68,48 @@ func (s *collectionService) Create(collection *models.Collection) error {
 
 	// Сохраняем коллекцию
 	return s.collectionRepo.Create(collection)
+}
+
+// CreateWithActions создает коллекцию с действиями в одной транзакции
+func (s *collectionService) CreateWithActions(collection *models.Collection, actions []*models.Action) error {
+	// Проверяем существование пользователя
+	_, err := s.userRepo.GetByID(collection.UserID)
+	if err != nil {
+		return ErrInvalidUserID
+	}
+
+	// Устанавливаем время создания и обновления
+	now := time.Now()
+	collection.CreatedAt = now
+	collection.UpdatedAt = now
+	collection.PlayCount = 0
+
+	// Сохраняем коллекцию
+	if err := s.collectionRepo.Create(collection); err != nil {
+		return err
+	}
+
+	// Добавляем действия
+	for i, action := range actions {
+		action.CollectionID = collection.ID
+		action.CreatedAt = now
+		action.UpdatedAt = now
+		if action.Order == 0 {
+			action.Order = i + 1
+		}
+		
+		// Валидируем тип действия
+		if action.Type != models.ActionTypeTruth && action.Type != models.ActionTypeDare {
+			return ErrInvalidActionType
+		}
+	}
+
+	// Сохраняем все действия одним запросом
+	if len(actions) > 0 {
+		return s.actionRepo.BatchCreate(actions)
+	}
+
+	return nil
 }
 
 // GetByID возвращает коллекцию по ID
@@ -177,6 +222,11 @@ func (s *collectionService) AddAction(collectionID uint, action *models.Action) 
 		return ErrCollectionNotFound
 	}
 
+	// Валидируем тип действия
+	if action.Type != models.ActionTypeTruth && action.Type != models.ActionTypeDare {
+		return ErrInvalidActionType
+	}
+
 	// Устанавливаем ID коллекции для действия
 	action.CollectionID = collectionID
 
@@ -231,4 +281,24 @@ func (s *collectionService) RemoveAction(actionID uint, userID uint) error {
 
 	// Удаляем действие
 	return s.actionRepo.Delete(actionID)
+}
+
+// GetActionCounts возвращает количество действий по типам
+func (s *collectionService) GetActionCounts(collectionID uint) (truthCount int, dareCount int, total int, error) {
+	actions, err := s.actionRepo.GetByCollectionID(collectionID)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+
+	total = len(actions)
+	for _, action := range actions {
+		switch action.Type {
+		case models.ActionTypeTruth:
+			truthCount++
+		case models.ActionTypeDare:
+			dareCount++
+		}
+	}
+
+	return truthCount, dareCount, total, nil
 }
