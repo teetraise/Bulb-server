@@ -66,20 +66,19 @@ type PublicUserResponse struct {
 	Name    string `json:"name"`
 	Surname string `json:"surname"`
 }
-// Добавить эти структуры в конец файла internal/handlers/dto.go
 
 // CreateCollectionWithActionsRequest представляет запрос на создание коллекции с карточками
 type CreateCollectionWithActionsRequest struct {
-	Name        string                 `json:"name" binding:"required"`
-	Description string                 `json:"description"`
-	ImageURL    string                 `json:"imageUrl"`
-	Actions     []CreateActionRequest  `json:"actions"`
+	Name        string                `json:"name" binding:"required"`
+	Description string                `json:"description"`
+	ImageURL    string                `json:"imageUrl"`
+	Actions     []CreateActionRequest `json:"actions"`
 }
 
 // CreateActionRequest представляет структуру запроса для создания действия с типом
 type CreateActionRequest struct {
 	Text  string `json:"text" binding:"required"`
-	Type  string `json:"type" binding:"required"`  // "truth" или "dare"
+	Type  string `json:"type" binding:"required"` // "truth" или "dare"
 	Order int    `json:"order"`
 }
 

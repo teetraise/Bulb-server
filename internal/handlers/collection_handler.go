@@ -17,21 +17,6 @@ type CollectionRequest struct {
 	ImageURL    string `json:"imageUrl"`
 }
 
-// CreateCollectionWithActionsRequest представляет запрос на создание коллекции с карточками
-type CreateCollectionWithActionsRequest struct {
-	Name        string                `json:"name" binding:"required"`
-	Description string                `json:"description"`
-	ImageURL    string                `json:"imageUrl"`
-	Actions     []CreateActionRequest `json:"actions"`
-}
-
-// CreateActionRequest представляет структуру запроса для создания действия с типом
-type CreateActionRequest struct {
-	Text  string `json:"text" binding:"required"`
-	Type  string `json:"type" binding:"required"` // "truth" или "dare"
-	Order int    `json:"order"`
-}
-
 // ActionRequest представляет структуру запроса для добавления действия
 type ActionRequest struct {
 	Text  string `json:"text" binding:"required"`
@@ -55,21 +40,6 @@ type ActionResponse struct {
 	ID    uint   `json:"id"`
 	Text  string `json:"text"`
 	Order int    `json:"order"`
-}
-
-// ActionResponseWithType представляет структуру ответа с данными действия включая тип
-type ActionResponseWithType struct {
-	ID    uint   `json:"id"`
-	Text  string `json:"text"`
-	Type  string `json:"type"`
-	Order int    `json:"order"`
-}
-
-// CollectionStatsResponse представляет статистику коллекции
-type CollectionStatsResponse struct {
-	TotalActions int `json:"totalActions"`
-	TruthCount   int `json:"truthCount"`
-	DareCount    int `json:"dareCount"`
 }
 
 // PaginationResponse представляет структуру ответа с пагинацией
@@ -222,6 +192,176 @@ func (h *CollectionHandler) GetByID(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// GetTrending обрабатывает запрос на получение популярных коллекций
+func (h *CollectionHandler) GetTrending(c *gin.Context) {
+	limitStr := c.DefaultQuery("limit", "10")
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	collections, err := h.collectionService.GetTrending(limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get trending collections"})
+		return
+	}
+
+	// Преобразуем коллекции в ответ
+	items := make([]CollectionResponse, 0, len(collections))
+	for _, collection := range collections {
+		items = append(items, CollectionResponse{
+			ID:          collection.ID,
+			Name:        collection.Name,
+			Description: collection.Description,
+			ImageURL:    collection.ImageURL,
+			UserID:      collection.UserID,
+			PlayCount:   collection.PlayCount,
+			CreatedAt:   collection.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"items": items,
+	})
+}
+
+// GetCollectionStats возвращает статистику коллекции
+func (h *CollectionHandler) GetCollectionStats(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid collection ID"})
+		return
+	}
+
+	truthCount, dareCount, total, err := h.collectionService.GetActionCounts(uint(id))
+	if err != nil {
+		if err == services.ErrCollectionNotFound {
+			c.JSON(http.StatusNotFound, ErrorResponse{Error: "Collection not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get collection stats"})
+		return
+	}
+
+	stats := CollectionStatsResponse{
+		TotalActions: total,
+		TruthCount:   truthCount,
+		DareCount:    dareCount,
+	}
+
+	c.JSON(http.StatusOK, stats)
+}
+
+// GetActions обрабатывает запрос на получение действий коллекции
+func (h *CollectionHandler) GetActions(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid collection ID"})
+		return
+	}
+
+	actions, err := h.collectionService.GetActions(uint(id))
+	if err != nil {
+		if err == services.ErrCollectionNotFound {
+			c.JSON(http.StatusNotFound, ErrorResponse{Error: "Collection not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get actions"})
+		return
+	}
+
+	// Преобразуем действия в ответ с типами
+	items := make([]ActionResponseWithType, 0, len(actions))
+	for _, action := range actions {
+		items = append(items, ActionResponseWithType{
+			ID:    action.ID,
+			Text:  action.Text,
+			Type:  string(action.Type),
+			Order: action.Order,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"items": items,
+	})
+}
+
+// GetUserCollections обрабатывает запрос на получение коллекций пользователя
+func (h *CollectionHandler) GetUserCollections(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "Unauthorized"})
+		return
+	}
+
+	collections, err := h.collectionService.GetByUserID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get user collections"})
+		return
+	}
+
+	// Преобразуем коллекции в ответ
+	items := make([]CollectionResponse, 0, len(collections))
+	for _, collection := range collections {
+		items = append(items, CollectionResponse{
+			ID:          collection.ID,
+			Name:        collection.Name,
+			Description: collection.Description,
+			ImageURL:    collection.ImageURL,
+			UserID:      collection.UserID,
+			PlayCount:   collection.PlayCount,
+			CreatedAt:   collection.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"items": items,
+	})
+}
+
+// List обрабатывает запрос на получение списка коллекций
+func (h *CollectionHandler) List(c *gin.Context) {
+	pageStr := c.DefaultQuery("page", "1")
+	sizeStr := c.DefaultQuery("size", "10")
+
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	size, err := strconv.Atoi(sizeStr)
+	if err != nil || size < 1 || size > 100 {
+		size = 10
+	}
+
+	collections, total, err := h.collectionService.List(page, size)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get collections"})
+		return
+	}
+
+	// Преобразуем коллекции в ответ
+	items := make([]CollectionResponse, 0, len(collections))
+	for _, collection := range collections {
+		items = append(items, CollectionResponse{
+			ID:          collection.ID,
+			Name:        collection.Name,
+			Description: collection.Description,
+			ImageURL:    collection.ImageURL,
+			UserID:      collection.UserID,
+			PlayCount:   collection.PlayCount,
+			CreatedAt:   collection.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		})
+	}
+
+	c.JSON(http.StatusOK, PaginationResponse{
+		Total: total,
+		Page:  page,
+		Size:  size,
+		Items: items,
+	})
+}
+
 // Update обрабатывает запрос на обновление коллекции
 func (h *CollectionHandler) Update(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
@@ -295,149 +435,6 @@ func (h *CollectionHandler) Delete(c *gin.Context) {
 	c.JSON(http.StatusOK, SuccessResponse{Message: "Collection deleted successfully"})
 }
 
-// List обрабатывает запрос на получение списка коллекций
-func (h *CollectionHandler) List(c *gin.Context) {
-	pageStr := c.DefaultQuery("page", "1")
-	sizeStr := c.DefaultQuery("size", "10")
-
-	page, err := strconv.Atoi(pageStr)
-	if err != nil || page < 1 {
-		page = 1
-	}
-
-	size, err := strconv.Atoi(sizeStr)
-	if err != nil || size < 1 || size > 100 {
-		size = 10
-	}
-
-	collections, total, err := h.collectionService.List(page, size)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get collections"})
-		return
-	}
-
-	// Преобразуем коллекции в ответ
-	items := make([]CollectionResponse, 0, len(collections))
-	for _, collection := range collections {
-		items = append(items, CollectionResponse{
-			ID:          collection.ID,
-			Name:        collection.Name,
-			Description: collection.Description,
-			ImageURL:    collection.ImageURL,
-			UserID:      collection.UserID,
-			PlayCount:   collection.PlayCount,
-			CreatedAt:   collection.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		})
-	}
-
-	c.JSON(http.StatusOK, PaginationResponse{
-		Total: total,
-		Page:  page,
-		Size:  size,
-		Items: items,
-	})
-}
-
-// GetTrending обрабатывает запрос на получение популярных коллекций
-func (h *CollectionHandler) GetTrending(c *gin.Context) {
-	limitStr := c.DefaultQuery("limit", "10")
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 1 || limit > 100 {
-		limit = 10
-	}
-
-	collections, err := h.collectionService.GetTrending(limit)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get trending collections"})
-		return
-	}
-
-	// Преобразуем коллекции в ответ
-	items := make([]CollectionResponse, 0, len(collections))
-	for _, collection := range collections {
-		// Получаем статистику для каждой коллекции
-		truthCount, dareCount, total, _ := h.collectionService.GetActionCounts(collection.ID)
-		
-		items = append(items, CollectionResponse{
-			ID:          collection.ID,
-			Name:        collection.Name,
-			Description: collection.Description,
-			ImageURL:    collection.ImageURL,
-			UserID:      collection.UserID,
-			PlayCount:   collection.PlayCount,
-			CreatedAt:   collection.CreatedAt.Format("2006-01-02T15:04:05Z"),
-			// Можно добавить статистику в ответ если нужно
-		})
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"items": items,
-	})
-}
-
-// GetUserCollections обрабатывает запрос на получение коллекций пользователя
-func (h *CollectionHandler) GetUserCollections(c *gin.Context) {
-	userID := middleware.GetUserID(c)
-	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "Unauthorized"})
-		return
-	}
-
-	collections, err := h.collectionService.GetByUserID(userID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get user collections"})
-		return
-	}
-
-	// Преобразуем коллекции в ответ
-	items := make([]CollectionResponse, 0, len(collections))
-	for _, collection := range collections {
-		// Получаем количество действий
-		_, _, total, _ := h.collectionService.GetActionCounts(collection.ID)
-		
-		items = append(items, CollectionResponse{
-			ID:          collection.ID,
-			Name:        collection.Name,
-			Description: collection.Description,
-			ImageURL:    collection.ImageURL,
-			UserID:      collection.UserID,
-			PlayCount:   collection.PlayCount,
-			CreatedAt:   collection.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		})
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"items": items,
-	})
-}
-
-// GetCollectionStats возвращает статистику коллекции
-func (h *CollectionHandler) GetCollectionStats(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid collection ID"})
-		return
-	}
-
-	truthCount, dareCount, total, err := h.collectionService.GetActionCounts(uint(id))
-	if err != nil {
-		if err == services.ErrCollectionNotFound {
-			c.JSON(http.StatusNotFound, ErrorResponse{Error: "Collection not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get collection stats"})
-		return
-	}
-
-	stats := CollectionStatsResponse{
-		TotalActions: total,
-		TruthCount:   truthCount,
-		DareCount:    dareCount,
-	}
-
-	c.JSON(http.StatusOK, stats)
-}
-
 // AddAction обрабатывает запрос на добавление действия в коллекцию
 func (h *CollectionHandler) AddAction(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
@@ -490,40 +487,6 @@ func (h *CollectionHandler) AddAction(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, SuccessResponse{Message: "Action added successfully"})
-}
-
-// GetActions обрабатывает запрос на получение действий коллекции
-func (h *CollectionHandler) GetActions(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid collection ID"})
-		return
-	}
-
-	actions, err := h.collectionService.GetActions(uint(id))
-	if err != nil {
-		if err == services.ErrCollectionNotFound {
-			c.JSON(http.StatusNotFound, ErrorResponse{Error: "Collection not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get actions"})
-		return
-	}
-
-	// Преобразуем действия в ответ с типами
-	items := make([]ActionResponseWithType, 0, len(actions))
-	for _, action := range actions {
-		items = append(items, ActionResponseWithType{
-			ID:    action.ID,
-			Text:  action.Text,
-			Type:  string(action.Type),
-			Order: action.Order,
-		})
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"items": items,
-	})
 }
 
 // RemoveAction обрабатывает запрос на удаление действия
